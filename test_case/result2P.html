@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Test Report</title>
+    <link href="assets/style.css" rel="stylesheet" type="text/css"/></head>
+  <body onLoad="init()">
+    <script>/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+function toArray(iter) {
+    if (iter === null) {
+        return null;
+    }
+    return Array.prototype.slice.call(iter);
+}
+
+function find(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return elem.querySelector(selector);
+}
+
+function find_all(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return toArray(elem.querySelectorAll(selector));
+}
+
+function sort_column(elem) {
+    toggle_sort_states(elem);
+    var colIndex = toArray(elem.parentNode.childNodes).indexOf(elem);
+    var key;
+    if (elem.classList.contains('numeric')) {
+        key = key_num;
+    } else if (elem.classList.contains('result')) {
+        key = key_result;
+    } else {
+        key = key_alpha;
+    }
+    sort_table(elem, key(colIndex));
+}
+
+function show_all_extras() {
+    find_all('.col-result').forEach(show_extras);
+}
+
+function hide_all_extras() {
+    find_all('.col-result').forEach(hide_extras);
+}
+
+function show_extras(colresult_elem) {
+    var extras = colresult_elem.parentNode.nextElementSibling;
+    var expandcollapse = colresult_elem.firstElementChild;
+    extras.classList.remove("collapsed");
+    expandcollapse.classList.remove("expander");
+    expandcollapse.classList.add("collapser");
+}
+
+function hide_extras(colresult_elem) {
+    var extras = colresult_elem.parentNode.nextElementSibling;
+    var expandcollapse = colresult_elem.firstElementChild;
+    extras.classList.add("collapsed");
+    expandcollapse.classList.remove("collapser");
+    expandcollapse.classList.add("expander");
+}
+
+function show_filters() {
+    var filter_items = document.getElementsByClassName('filter');
+    for (var i = 0; i < filter_items.length; i++)
+        filter_items[i].hidden = false;
+}
+
+function add_collapse() {
+    // Add links for show/hide all
+    var resulttable = find('table#results-table');
+    var showhideall = document.createElement("p");
+    showhideall.innerHTML = '<a href="javascript:show_all_extras()">Show all details</a> / ' +
+                            '<a href="javascript:hide_all_extras()">Hide all details</a>';
+    resulttable.parentElement.insertBefore(showhideall, resulttable);
+
+    // Add show/hide link to each result
+    find_all('.col-result').forEach(function(elem) {
+        var extras = elem.parentNode.nextElementSibling;
+        var expandcollapse = document.createElement("span");
+        if (elem.innerHTML === 'Passed') {
+            extras.classList.add("collapsed");
+            expandcollapse.classList.add("expander");
+        } else {
+            expandcollapse.classList.add("collapser");
+        }
+        elem.appendChild(expandcollapse);
+
+        elem.addEventListener("click", function(event) {
+            if (event.currentTarget.parentNode.nextElementSibling.classList.contains("collapsed")) {
+                show_extras(event.currentTarget);
+            } else {
+                hide_extras(event.currentTarget);
+            }
+        });
+    })
+}
+
+function init () {
+    reset_sort_headers();
+
+    add_collapse();
+
+    show_filters();
+
+    toggle_sort_states(find('.initial-sort'));
+
+    find_all('.sortable').forEach(function(elem) {
+        elem.addEventListener("click",
+                              function(event) {
+                                  sort_column(elem);
+                              }, false)
+    });
+
+};
+
+function sort_table(clicked, key_func) {
+    var rows = find_all('.results-table-row');
+    var reversed = !clicked.classList.contains('asc');
+    var sorted_rows = sort(rows, key_func, reversed);
+    /* Whole table is removed here because browsers acts much slower
+     * when appending existing elements.
+     */
+    var thead = document.getElementById("results-table-head");
+    document.getElementById('results-table').remove();
+    var parent = document.createElement("table");
+    parent.id = "results-table";
+    parent.appendChild(thead);
+    sorted_rows.forEach(function(elem) {
+        parent.appendChild(elem);
+    });
+    document.getElementsByTagName("BODY")[0].appendChild(parent);
+}
+
+function sort(items, key_func, reversed) {
+    var sort_array = items.map(function(item, i) {
+        return [key_func(item), i];
+    });
+    var multiplier = reversed ? -1 : 1;
+
+    sort_array.sort(function(a, b) {
+        var key_a = a[0];
+        var key_b = b[0];
+        return multiplier * (key_a >= key_b ? 1 : -1);
+    });
+
+    return sort_array.map(function(item) {
+        var index = item[1];
+        return items[index];
+    });
+}
+
+function key_alpha(col_index) {
+    return function(elem) {
+        return elem.childNodes[1].childNodes[col_index].firstChild.data.toLowerCase();
+    };
+}
+
+function key_num(col_index) {
+    return function(elem) {
+        return parseFloat(elem.childNodes[1].childNodes[col_index].firstChild.data);
+    };
+}
+
+function key_result(col_index) {
+    return function(elem) {
+        var strings = ['Error', 'Failed', 'Rerun', 'XFailed', 'XPassed',
+                       'Skipped', 'Passed'];
+        return strings.indexOf(elem.childNodes[1].childNodes[col_index].firstChild.data);
+    };
+}
+
+function reset_sort_headers() {
+    find_all('.sort-icon').forEach(function(elem) {
+        elem.parentNode.removeChild(elem);
+    });
+    find_all('.sortable').forEach(function(elem) {
+        var icon = document.createElement("div");
+        icon.className = "sort-icon";
+        icon.textContent = "vvv";
+        elem.insertBefore(icon, elem.firstChild);
+        elem.classList.remove("desc", "active");
+        elem.classList.add("asc", "inactive");
+    });
+}
+
+function toggle_sort_states(elem) {
+    //if active, toggle between asc and desc
+    if (elem.classList.contains('active')) {
+        elem.classList.toggle('asc');
+        elem.classList.toggle('desc');
+    }
+
+    //if inactive, reset all other functions and add ascending active
+    if (elem.classList.contains('inactive')) {
+        reset_sort_headers();
+        elem.classList.remove('inactive');
+        elem.classList.add('active');
+    }
+}
+
+function is_all_rows_hidden(value) {
+  return value.hidden == false;
+}
+
+function filter_table(elem) {
+    var outcome_att = "data-test-result";
+    var outcome = elem.getAttribute(outcome_att);
+    class_outcome = outcome + " results-table-row";
+    var outcome_rows = document.getElementsByClassName(class_outcome);
+
+    for(var i = 0; i < outcome_rows.length; i++){
+        outcome_rows[i].hidden = !elem.checked;
+    }
+
+    var rows = find_all('.results-table-row').filter(is_all_rows_hidden);
+    var all_rows_hidden = rows.length == 0 ? true : false;
+    var not_found_message = document.getElementById("not-found-message");
+    not_found_message.hidden = !all_rows_hidden;
+}
+</script>
+    <p>Report generated on 26-Dec-2017 at 17:26:38 by<a href="https://pypi.python.org/pypi/pytest-html"> pytest-html</a> v1.15.1</p>
+    <h2>Environment</h2>
+    <table id="environment">
+      <tr>
+        <td>Packages</td>
+        <td>{&apos;pytest&apos;: &apos;3.1.2&apos;, &apos;pluggy&apos;: &apos;0.4.0&apos;, &apos;py&apos;: &apos;1.4.34&apos;}</td></tr>
+      <tr>
+        <td>Platform</td>
+        <td>Windows-7-6.1.7600</td></tr>
+      <tr>
+        <td>Plugins</td>
+        <td>{&apos;html&apos;: &apos;1.15.1&apos;, &apos;metadata&apos;: &apos;1.5.0&apos;}</td></tr>
+      <tr>
+        <td>Python</td>
+        <td>3.3.5</td></tr></table>
+    <h2>Summary</h2>
+    <p>43 tests ran in 3553.69 seconds. </p>
+    <p class="filter" hidden="true">(Un)check the boxes to filter the results.</p><input checked="true" class="filter" data-test-result="passed" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="passed">43 passed</span>, <input checked="true" class="filter" data-test-result="skipped" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="skipped">0 skipped</span>, <input checked="true" class="filter" data-test-result="failed" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="failed">0 failed</span>, <input checked="true" class="filter" data-test-result="error" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="error">0 errors</span>, <input checked="true" class="filter" data-test-result="xfailed" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="xfailed">0 expected failures</span>, <input checked="true" class="filter" data-test-result="xpassed" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="xpassed">0 unexpected passes</span>
+    <h2>Results</h2>
+    <table id="results-table">
+      <thead id="results-table-head">
+        <tr>
+          <th class="sortable result initial-sort" col="result">Result</th>
+          <th class="sortable" col="name">Test</th>
+          <th class="sortable numeric" col="duration">Duration</th>
+          <th>Links</th></tr>
+        <tr hidden="true" id="not-found-message">
+          <th colspan="4">No results found. Try to check the filters</th></tr></thead>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_AutoUpgrade.py::Test_Auto_Upgrade::()::test_auto_upgrade</td>
+          <td class="col-duration">449.66</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;d280000ce6aef738a52e44b523d264aa&quot;)&gt;
+one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;f978edd0c39647a2d8c47e2fdba132be&quot;)&gt;
+----------------------------- Captured stdout call -----------------------------<br/>自动化升级
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_reset.py::Test_Reset::()::test_reset</td>
+          <td class="col-duration">5.15</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;0c4739d60d4c5ff673b7a8c178a08e8e&quot;)&gt;
+----------------------------- Captured stdout call -----------------------------<br/>测试重置路由器
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_setup_set_english_SSID_D1.py::Test_Initialize_SSID::()::test_set_english_SSID</td>
+          <td class="col-duration">52.57</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;c0447cecc710cb8493be8d102f884986&quot;)&gt;
+----------------------------- Captured stdout call -----------------------------<br/>测试设置向导设置纯英文SSID
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_setup_get_english_SSID.py::Test_get_English_SSID::()::test_get_24G_English_SSID</td>
+          <td class="col-duration">2.01</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;fff989d89c71cc9ab3e729f165109e3d&quot;)&gt;
+----------------------------- Captured stdout call -----------------------------<br/>初始化设置-获取英文2.4G SSID
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_setup_get_english_SSID.py::Test_get_English_SSID::()::test_get_5G_English_SSID</td>
+          <td class="col-duration">3.02</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;c242eaaca5006284eb82c6aea115c765&quot;)&gt;
+----------------------------- Captured stdout call -----------------------------<br/>初始化设置-获取英文5G SSID
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_reset.py::Test_Reset::()::test_reset</td>
+          <td class="col-duration">5.16</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;2928516185a80ce4e856dac490391109&quot;)&gt;
+----------------------------- Captured stdout call -----------------------------<br/>测试重置路由器
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_setup_set_number_SSID_D1.py::Test_Initialize_SSID::()::test_set_number_SSID</td>
+          <td class="col-duration">52.59</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;52d278a62b1c67a791cbba0b356423c5&quot;)&gt;
+----------------------------- Captured stdout call -----------------------------<br/>测试设置初始化ssid为纯数字
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_setup_get_number_SSID.py::Test_get_NEWSSID::()::test_get_24G_Number_SSID</td>
+          <td class="col-duration">2.01</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;4fb1c461a63a99c12c2ede8c4f157d7e&quot;)&gt;
+----------------------------- Captured stdout call -----------------------------<br/>初始化设置-获取纯数字 2.4G SSID
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_setup_get_number_SSID.py::Test_get_NEWSSID::()::test_get_5G_Number_SSID</td>
+          <td class="col-duration">3.02</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;545091486465527e92927ae999e108c5&quot;)&gt;
+----------------------------- Captured stdout call -----------------------------<br/>初始化设置-获取纯数字 5G SSID
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_reset.py::Test_Reset::()::test_reset</td>
+          <td class="col-duration">5.16</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;a1ffd29b86e546d42598564c5c2d8e8e&quot;)&gt;
+----------------------------- Captured stdout call -----------------------------<br/>测试重置路由器
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_setup_set_SpecialChar_SSID_D1.py::Test_Initialize_SSID::()::test_set_special_char_SSID</td>
+          <td class="col-duration">52.59</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;da70bb5606b711bbe2fe76ed3d5683ad&quot;)&gt;
+----------------------------- Captured stdout call -----------------------------<br/>测试设置初始化ssid为特殊字符
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_setup_get_SpecialChar_SSID.py::Test_get_NEWSSID::()::test_get_24G_SpecialChar_SSID</td>
+          <td class="col-duration">2.01</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;dfe531b9342b686956d385813092b84c&quot;)&gt;
+----------------------------- Captured stdout call -----------------------------<br/>初始化设置-获取特殊字符 2.4G SSID
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_setup_get_SpecialChar_SSID.py::Test_get_NEWSSID::()::test_get_5G_SpecialChar_SSID</td>
+          <td class="col-duration">3.01</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;dd46e491fbd509b10efbdf06f493a9f5&quot;)&gt;
+----------------------------- Captured stdout call -----------------------------<br/>初始化设置-获取特殊字符 5G SSID
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_reset.py::Test_Reset::()::test_reset</td>
+          <td class="col-duration">5.16</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;e307ddde0c42c5fda2d563e43527ef71&quot;)&gt;
+----------------------------- Captured stdout call -----------------------------<br/>测试重置路由器
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_domainInitialize.py::Test_DomainInitialize::()::test_okgoJumpInitialize</td>
+          <td class="col-duration">6.23</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;d90f42c034fcd975cddf6fd891a15fe0&quot;)&gt;
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_domainInitialize.py::Test_DomainInitialize::()::test_wifiJumpInitialize</td>
+          <td class="col-duration">7.21</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;572642d030d04a61608121c9e1d147be&quot;)&gt;
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_domainInitialize.py::Test_DomainInitialize::()::test_xyuncoJumpInitialize</td>
+          <td class="col-duration">6.09</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;166f21172100fad75d9865f2ae8e7069&quot;)&gt;
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_domainInitialize.py::Test_DomainInitialize::()::test_newificomInitialize</td>
+          <td class="col-duration">6.39</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;d3cccac8d3fe70dd713f6fb0bbaf5713&quot;)&gt;
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_setupD1DHCPNew.py::test_setupD1DHCPNew</td>
+          <td class="col-duration">108.45</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">----------------------------- Captured stdout call -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;d9cabdbbd06c3f600063f1e6b914afc3&quot;)&gt;
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_VersionCheck.py::test_VersionCheck</td>
+          <td class="col-duration">21.15</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">----------------------------- Captured stdout call -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;fac9e5350d23ccf8e0e45d11a387884f&quot;)&gt;
+3.2.1.7300
+newifi 新路由 3 Plus
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_SambaCheck_D2.py::test_check_128iso</td>
+          <td class="col-duration">0.57</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">----------------------------- Captured stdout call -----------------------------<br/>[&#x27;.128M.ext4.iso&#x27;, &#x27;.UsbKey&#x27;, &#x27;.usbtest&#x27;, &#x27;.xccdn_dl&#x27;, &#x27;._.DS_Store&#x27;, &#x27;._pear_update&#x27;, &#x27;1.JPG&#x27;, &#x27;bt_db&#x27;, &#x27;fogvdn_NEWIFI_MT7621_OPENWRT.tar.gz&#x27;, &#x27;logs&#x27;, &#x27;nginx_cache&#x27;, &#x27;pear_encrypt&#x27;, &#x27;pear_update&#x27;, &#x27;pear_update.log&#x27;, &#x27;pic_thumb&#x27;, &#x27;TDDOWNLOAD&#x27;, &#x27;ThunderDB&#x27;, &#x27;top.log&#x27;, &#x27;xcloud&#x27;, &#x27;xDownload&#x27;, &#x27;xipk&#x27;, &#x27;新建文本文档.txt&#x27;]
+.128M.ext4.iso
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_SambaCheck_D2.py::test_xcloudfile</td>
+          <td class="col-duration">0.19</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">----------------------------- Captured stdout call -----------------------------<br/>.FileTransTmp
+docs
+1
+music
+2
+pic
+3
+video
+4
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_wifis.py::Test_WiFi::()::test_get_Default_24g_SSID</td>
+          <td class="col-duration">2.01</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;b0c3d824fb9f248418a6ad90b771a50e&quot;)&gt;
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_wifis.py::Test_WiFi::()::test_get_Default_5g_SSID</td>
+          <td class="col-duration">3.02</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;377b8ddac1d9e73f1472b677544b718c&quot;)&gt;
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_wifis.py::Test_WiFi::()::test_get_Default_24_Password</td>
+          <td class="col-duration">3.08</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;e8b60d000c51337f966b0a09c1f02f4f&quot;)&gt;
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_wifis.py::Test_WiFi::()::test_get_Default_5g_Password</td>
+          <td class="col-duration">4.10</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;bf320a16f2a30f87b6a4071857a5aa3e&quot;)&gt;
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_wifis.py::Test_WiFi::()::test_get_Default_24G_Encryption</td>
+          <td class="col-duration">6.12</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;4612f06a6702ee2b53fb52e9f18dcc6f&quot;)&gt;
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_wifis.py::Test_WiFi::()::test_get_Default_5G_Encryption</td>
+          <td class="col-duration">8.14</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;959f0c8898404538e41e07fdd502467d&quot;)&gt;
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_wifis.py::Test_WiFi::()::test_set_24G_SSID</td>
+          <td class="col-duration">26.33</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;64660c70683bd372183c95f6003ce647&quot;)&gt;
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_wifis.py::Test_WiFi::()::test_set_5G_SSID</td>
+          <td class="col-duration">28.32</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;123ff0f11d05aeaf4bf693232b3cdd47&quot;)&gt;
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_wifis.py::Test_WiFi::()::test_set_24G_PW</td>
+          <td class="col-duration">28.50</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;a7eef3ff83dae7250619aa6ea17db1f3&quot;)&gt;
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_wifis.py::Test_WiFi::()::test_set_5G_PW</td>
+          <td class="col-duration">31.49</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;0b022fc5a235f780961f4ee334f14bd2&quot;)&gt;
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_wifis.py::Test_WiFi::()::test_set_24G_Null_PW</td>
+          <td class="col-duration">36.41</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;c2df7106d63697793f1dfec9703a33af&quot;)&gt;
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_wifis.py::Test_WiFi::()::test_set_24G_Psk2_PW</td>
+          <td class="col-duration">39.67</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;0165a2880c05cb7e3226da10a7a9f9ba&quot;)&gt;
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_wifis.py::Test_WiFi::()::test_set_24G_Psk_Psk2_PW</td>
+          <td class="col-duration">39.68</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;189fde270a47b114a6b9c6c895e4d902&quot;)&gt;
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_wifis.py::Test_WiFi::()::test_set_5G_Null_PW</td>
+          <td class="col-duration">40.42</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;3dc211cc0f918534403b24abae114b8b&quot;)&gt;
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_wifis.py::Test_WiFi::()::test_set_5G_Psk2_PW</td>
+          <td class="col-duration">44.72</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;4d2edcf3326ebf9e268408f535a5395d&quot;)&gt;
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_wifis.py::Test_WiFi::()::test_set_5G_Psk_Psk2_PW</td>
+          <td class="col-duration">44.71</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;92468463c4afbc6fe2a4d82eaa78701a&quot;)&gt;
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_wifis.py::Test_WiFi::()::test_get_24G_Hide</td>
+          <td class="col-duration">4.03</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;bb52e7356d271c84c7bf8abd300b63da&quot;)&gt;
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_wifis.py::Test_WiFi::()::test_get_5G_Hide</td>
+          <td class="col-duration">5.04</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;0eefdd77b725ec0696a0dc07039a4d4c&quot;)&gt;
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_wifis.py::Test_WiFi::()::test_set_24G_Hide</td>
+          <td class="col-duration">34.29</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;dc675761cbdab734fc3fb52ab84bcee0&quot;)&gt;
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_wifis.py::Test_WiFi::()::test_set_5G_Hide</td>
+          <td class="col-duration">38.33</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;4937e2ad8441ec3f266293b8e671b962&quot;)&gt;
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_wifis.py::Test_WiFi::()::test_get_Default_24G_HT</td>
+          <td class="col-duration">6.11</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;da6dece9a8d93d596fe0bb885a13266b&quot;)&gt;
+</div></td></tr></tbody></table></body></html>

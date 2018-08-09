@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Test Report</title>
+    <link href="assets/style.css" rel="stylesheet" type="text/css"/></head>
+  <body onLoad="init()">
+    <script>/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+function toArray(iter) {
+    if (iter === null) {
+        return null;
+    }
+    return Array.prototype.slice.call(iter);
+}
+
+function find(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return elem.querySelector(selector);
+}
+
+function find_all(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return toArray(elem.querySelectorAll(selector));
+}
+
+function sort_column(elem) {
+    toggle_sort_states(elem);
+    var colIndex = toArray(elem.parentNode.childNodes).indexOf(elem);
+    var key;
+    if (elem.classList.contains('numeric')) {
+        key = key_num;
+    } else if (elem.classList.contains('result')) {
+        key = key_result;
+    } else {
+        key = key_alpha;
+    }
+    sort_table(elem, key(colIndex));
+}
+
+function show_all_extras() {
+    find_all('.col-result').forEach(show_extras);
+}
+
+function hide_all_extras() {
+    find_all('.col-result').forEach(hide_extras);
+}
+
+function show_extras(colresult_elem) {
+    var extras = colresult_elem.parentNode.nextElementSibling;
+    var expandcollapse = colresult_elem.firstElementChild;
+    extras.classList.remove("collapsed");
+    expandcollapse.classList.remove("expander");
+    expandcollapse.classList.add("collapser");
+}
+
+function hide_extras(colresult_elem) {
+    var extras = colresult_elem.parentNode.nextElementSibling;
+    var expandcollapse = colresult_elem.firstElementChild;
+    extras.classList.add("collapsed");
+    expandcollapse.classList.remove("collapser");
+    expandcollapse.classList.add("expander");
+}
+
+function show_filters() {
+    var filter_items = document.getElementsByClassName('filter');
+    for (var i = 0; i < filter_items.length; i++)
+        filter_items[i].hidden = false;
+}
+
+function add_collapse() {
+    // Add links for show/hide all
+    var resulttable = find('table#results-table');
+    var showhideall = document.createElement("p");
+    showhideall.innerHTML = '<a href="javascript:show_all_extras()">Show all details</a> / ' +
+                            '<a href="javascript:hide_all_extras()">Hide all details</a>';
+    resulttable.parentElement.insertBefore(showhideall, resulttable);
+
+    // Add show/hide link to each result
+    find_all('.col-result').forEach(function(elem) {
+        var extras = elem.parentNode.nextElementSibling;
+        var expandcollapse = document.createElement("span");
+        if (elem.innerHTML === 'Passed') {
+            extras.classList.add("collapsed");
+            expandcollapse.classList.add("expander");
+        } else {
+            expandcollapse.classList.add("collapser");
+        }
+        elem.appendChild(expandcollapse);
+
+        elem.addEventListener("click", function(event) {
+            if (event.currentTarget.parentNode.nextElementSibling.classList.contains("collapsed")) {
+                show_extras(event.currentTarget);
+            } else {
+                hide_extras(event.currentTarget);
+            }
+        });
+    })
+}
+
+function init () {
+    reset_sort_headers();
+
+    add_collapse();
+
+    show_filters();
+
+    toggle_sort_states(find('.initial-sort'));
+
+    find_all('.sortable').forEach(function(elem) {
+        elem.addEventListener("click",
+                              function(event) {
+                                  sort_column(elem);
+                              }, false)
+    });
+
+};
+
+function sort_table(clicked, key_func) {
+    var rows = find_all('.results-table-row');
+    var reversed = !clicked.classList.contains('asc');
+    var sorted_rows = sort(rows, key_func, reversed);
+    /* Whole table is removed here because browsers acts much slower
+     * when appending existing elements.
+     */
+    var thead = document.getElementById("results-table-head");
+    document.getElementById('results-table').remove();
+    var parent = document.createElement("table");
+    parent.id = "results-table";
+    parent.appendChild(thead);
+    sorted_rows.forEach(function(elem) {
+        parent.appendChild(elem);
+    });
+    document.getElementsByTagName("BODY")[0].appendChild(parent);
+}
+
+function sort(items, key_func, reversed) {
+    var sort_array = items.map(function(item, i) {
+        return [key_func(item), i];
+    });
+    var multiplier = reversed ? -1 : 1;
+
+    sort_array.sort(function(a, b) {
+        var key_a = a[0];
+        var key_b = b[0];
+        return multiplier * (key_a >= key_b ? 1 : -1);
+    });
+
+    return sort_array.map(function(item) {
+        var index = item[1];
+        return items[index];
+    });
+}
+
+function key_alpha(col_index) {
+    return function(elem) {
+        return elem.childNodes[1].childNodes[col_index].firstChild.data.toLowerCase();
+    };
+}
+
+function key_num(col_index) {
+    return function(elem) {
+        return parseFloat(elem.childNodes[1].childNodes[col_index].firstChild.data);
+    };
+}
+
+function key_result(col_index) {
+    return function(elem) {
+        var strings = ['Error', 'Failed', 'Rerun', 'XFailed', 'XPassed',
+                       'Skipped', 'Passed'];
+        return strings.indexOf(elem.childNodes[1].childNodes[col_index].firstChild.data);
+    };
+}
+
+function reset_sort_headers() {
+    find_all('.sort-icon').forEach(function(elem) {
+        elem.parentNode.removeChild(elem);
+    });
+    find_all('.sortable').forEach(function(elem) {
+        var icon = document.createElement("div");
+        icon.className = "sort-icon";
+        icon.textContent = "vvv";
+        elem.insertBefore(icon, elem.firstChild);
+        elem.classList.remove("desc", "active");
+        elem.classList.add("asc", "inactive");
+    });
+}
+
+function toggle_sort_states(elem) {
+    //if active, toggle between asc and desc
+    if (elem.classList.contains('active')) {
+        elem.classList.toggle('asc');
+        elem.classList.toggle('desc');
+    }
+
+    //if inactive, reset all other functions and add ascending active
+    if (elem.classList.contains('inactive')) {
+        reset_sort_headers();
+        elem.classList.remove('inactive');
+        elem.classList.add('active');
+    }
+}
+
+function is_all_rows_hidden(value) {
+  return value.hidden == false;
+}
+
+function filter_table(elem) {
+    var outcome_att = "data-test-result";
+    var outcome = elem.getAttribute(outcome_att);
+    class_outcome = outcome + " results-table-row";
+    var outcome_rows = document.getElementsByClassName(class_outcome);
+
+    for(var i = 0; i < outcome_rows.length; i++){
+        outcome_rows[i].hidden = !elem.checked;
+    }
+
+    var rows = find_all('.results-table-row').filter(is_all_rows_hidden);
+    var all_rows_hidden = rows.length == 0 ? true : false;
+    var not_found_message = document.getElementById("not-found-message");
+    not_found_message.hidden = !all_rows_hidden;
+}
+</script>
+    <p>Report generated on 25-Dec-2017 at 15:52:01 by<a href="https://pypi.python.org/pypi/pytest-html"> pytest-html</a> v1.15.1</p>
+    <h2>Environment</h2>
+    <table id="environment">
+      <tr>
+        <td>Packages</td>
+        <td>{&apos;pluggy&apos;: &apos;0.4.0&apos;, &apos;pytest&apos;: &apos;3.1.2&apos;, &apos;py&apos;: &apos;1.4.34&apos;}</td></tr>
+      <tr>
+        <td>Platform</td>
+        <td>Windows-7-6.1.7600</td></tr>
+      <tr>
+        <td>Plugins</td>
+        <td>{&apos;metadata&apos;: &apos;1.5.0&apos;, &apos;html&apos;: &apos;1.15.1&apos;}</td></tr>
+      <tr>
+        <td>Python</td>
+        <td>3.3.5</td></tr></table>
+    <h2>Summary</h2>
+    <p>43 tests ran in 5403.14 seconds. </p>
+    <p class="filter" hidden="true">(Un)check the boxes to filter the results.</p><input checked="true" class="filter" data-test-result="passed" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="passed">32 passed</span>, <input checked="true" class="filter" data-test-result="skipped" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="skipped">0 skipped</span>, <input checked="true" class="filter" data-test-result="failed" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="failed">11 failed</span>, <input checked="true" class="filter" data-test-result="error" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="error">0 errors</span>, <input checked="true" class="filter" data-test-result="xfailed" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="xfailed">0 expected failures</span>, <input checked="true" class="filter" data-test-result="xpassed" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="xpassed">0 unexpected passes</span>
+    <h2>Results</h2>
+    <table id="results-table">
+      <thead id="results-table-head">
+        <tr>
+          <th class="sortable result initial-sort" col="result">Result</th>
+          <th class="sortable" col="name">Test</th>
+          <th class="sortable numeric" col="duration">Duration</th>
+          <th>Links</th></tr>
+        <tr hidden="true" id="not-found-message">
+          <th colspan="4">No results found. Try to check the filters</th></tr></thead>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test_AccessDevice.py::Test_AccessDevices::()::test_NetworkSamba</td>
+          <td class="col-duration">153.68</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div><div><img src="http://192.168.102.200:8080/job/D2%20full%20case/ws/errorpng/caseFail/test_AccessDevice.py_Test_AccessDevices_()_test_NetworkSamba.png" alt="screenshot" style="width:304px;height:228px;" onclick="window.open(this.src)" align="right"/></div></div>
+            <div class="log">self = &lt;test_AccessDevice.Test_AccessDevices object at 0x0000000004224710&gt;<br/><br/>    def test_NetworkSamba(self):<br/>        t = tools()<br/>&gt;       assert t.urlRequest(&#x27;www.baidu.com&#x27;) == 1 and t.open_smaba() == 1<br/><span class="error">E       AssertionError: assert (1 == 1 and 0 == 1)</span><br/><span class="error">E        +  where 1 = &lt;bound method tools.urlRequest of &lt;tools.tools object at 0x00000000042158D0&gt;&gt;(&#x27;www.baidu.com&#x27;)</span><br/><span class="error">E        +    where &lt;bound method tools.urlRequest of &lt;tools.tools object at 0x00000000042158D0&gt;&gt; = &lt;tools.tools object at 0x00000000042158D0&gt;.urlRequest</span><br/><span class="error">E        +  and   0 = &lt;bound method tools.open_smaba of &lt;tools.tools object at 0x00000000042158D0&gt;&gt;()</span><br/><span class="error">E        +    where &lt;bound method tools.open_smaba of &lt;tools.tools object at 0x00000000042158D0&gt;&gt; = &lt;tools.tools object at 0x00000000042158D0&gt;.open_smaba</span><br/><br/>test_AccessDevice.py:103: AssertionError<br/>---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;ebfa01509646291f10e3d7d80af5593f&quot;)&gt;
+</div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test_AccessDevice.py::Test_AccessDevices::()::test_Cancel_Limit_Samba</td>
+          <td class="col-duration">125.91</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div><div><img src="http://192.168.102.200:8080/job/D2%20full%20case/ws/errorpng/caseFail/test_AccessDevice.py_Test_AccessDevices_()_test_Cancel_Limit_Samba.png" alt="screenshot" style="width:304px;height:228px;" onclick="window.open(this.src)" align="right"/></div></div>
+            <div class="log">self = &lt;test_AccessDevice.Test_AccessDevices object at 0x000000000429D5C0&gt;<br/><br/>    def test_Cancel_Limit_Samba(self):<br/>        print(u&#x27;取消限制访问samba&#x27;)<br/>&gt;       assert Cancel_Limit_Samba(self.driver) == 1<br/><span class="error">E       assert None == 1</span><br/><span class="error">E        +  where None = Cancel_Limit_Samba(&lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;ed3c2f47874997a7fd29f33da56a0088&quot;)&gt;)</span><br/><span class="error">E        +    where &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;ed3c2f47874997a7fd29f33da56a0088&quot;)&gt; = &lt;test_AccessDevice.Test_AccessDevices object at 0x000000000429D5C0&gt;.driver</span><br/><br/>test_AccessDevice.py:115: AssertionError<br/>---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;ed3c2f47874997a7fd29f33da56a0088&quot;)&gt;
+----------------------------- Captured stdout call -----------------------------<br/>取消限制访问samba
+</div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test_relay_D2.py::Test_Relays::()::test_Cancel_24G_Conn_Relay</td>
+          <td class="col-duration">30.79</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div><div><img src="http://192.168.102.200:8080/job/D2%20full%20case/ws/errorpng/caseFail/test_relay_D2.py_Test_Relays_()_test_Cancel_24G_Conn_Relay.png" alt="screenshot" style="width:304px;height:228px;" onclick="window.open(this.src)" align="right"/></div></div>
+            <div class="log">self = &lt;test_relay_D2.Test_Relays object at 0x00000000042ADA20&gt;<br/><br/>    def test_Cancel_24G_Conn_Relay(self):<br/>        print(u&#x27;取消2.4G无线中继连接&#x27;)<br/>&gt;       assert Cancel_24G_Conn_Relay(self.driver) == 2<br/><span class="error">E       assert None == 2</span><br/><span class="error">E        +  where None = Cancel_24G_Conn_Relay(&lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;b492d261d1d5c0883dbae9698168855a&quot;)&gt;)</span><br/><span class="error">E        +    where &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;b492d261d1d5c0883dbae9698168855a&quot;)&gt; = &lt;test_relay_D2.Test_Relays object at 0x00000000042ADA20&gt;.driver</span><br/><br/>test_relay_D2.py:160: AssertionError<br/>---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;b492d261d1d5c0883dbae9698168855a&quot;)&gt;
+----------------------------- Captured stdout call -----------------------------<br/>取消2.4G无线中继连接
+</div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test_relay_D2.py::Test_Relays::()::test_Close_Relay</td>
+          <td class="col-duration">32.41</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div><div><img src="http://192.168.102.200:8080/job/D2%20full%20case/ws/errorpng/caseFail/test_relay_D2.py_Test_Relays_()_test_Close_Relay.png" alt="screenshot" style="width:304px;height:228px;" onclick="window.open(this.src)" align="right"/></div></div>
+            <div class="log">self = &lt;test_relay_D2.Test_Relays object at 0x00000000042130F0&gt;<br/><br/>    def test_Close_Relay(self):<br/>        print(u&#x27;关闭无线中继&#x27;)<br/>&gt;       assert Close_Relay(self.driver) == 3<br/><span class="error">E       assert None == 3</span><br/><span class="error">E        +  where None = Close_Relay(&lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;1fd87d713832e3d4e359789fe40228bf&quot;)&gt;)</span><br/><span class="error">E        +    where &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;1fd87d713832e3d4e359789fe40228bf&quot;)&gt; = &lt;test_relay_D2.Test_Relays object at 0x00000000042130F0&gt;.driver</span><br/><br/>test_relay_D2.py:168: AssertionError<br/>---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;1fd87d713832e3d4e359789fe40228bf&quot;)&gt;
+----------------------------- Captured stdout call -----------------------------<br/>关闭无线中继
+</div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test_relay_D2.py::Test_Relays::()::test_Reopen_Relay</td>
+          <td class="col-duration">32.41</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div><div><img src="http://192.168.102.200:8080/job/D2%20full%20case/ws/errorpng/caseFail/test_relay_D2.py_Test_Relays_()_test_Reopen_Relay.png" alt="screenshot" style="width:304px;height:228px;" onclick="window.open(this.src)" align="right"/></div></div>
+            <div class="log">self = &lt;test_relay_D2.Test_Relays object at 0x00000000042133C8&gt;<br/><br/>    def test_Reopen_Relay(self):<br/>        print(u&#x27;重新打开无线中继&#x27;)<br/>&gt;       assert Reopen_Relay(self.driver) == 1<br/><span class="error">E       assert None == 1</span><br/><span class="error">E        +  where None = Reopen_Relay(&lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;e9923857b40d2865d2a9cf800bd22b0a&quot;)&gt;)</span><br/><span class="error">E        +    where &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;e9923857b40d2865d2a9cf800bd22b0a&quot;)&gt; = &lt;test_relay_D2.Test_Relays object at 0x00000000042133C8&gt;.driver</span><br/><br/>test_relay_D2.py:172: AssertionError<br/>---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;e9923857b40d2865d2a9cf800bd22b0a&quot;)&gt;
+----------------------------- Captured stdout call -----------------------------<br/>重新打开无线中继
+</div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test_relay_D2.py::Test_Relays::()::test_Sure_Clear_24G_Relay</td>
+          <td class="col-duration">30.77</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div><div><img src="http://192.168.102.200:8080/job/D2%20full%20case/ws/errorpng/caseFail/test_relay_D2.py_Test_Relays_()_test_Sure_Clear_24G_Relay.png" alt="screenshot" style="width:304px;height:228px;" onclick="window.open(this.src)" align="right"/></div></div>
+            <div class="log">self = &lt;test_relay_D2.Test_Relays object at 0x00000000042B73C8&gt;<br/><br/>    def test_Sure_Clear_24G_Relay(self):<br/>        print(u&#x27;确定清除2.4G无线中继连接&#x27;)<br/>&gt;       assert Sure_Clear_24G_Relay(self.driver) == 2<br/><span class="error">E       assert None == 2</span><br/><span class="error">E        +  where None = Sure_Clear_24G_Relay(&lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;6eaa7cdcbd3fc266c1d93b7f372e3047&quot;)&gt;)</span><br/><span class="error">E        +    where &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;6eaa7cdcbd3fc266c1d93b7f372e3047&quot;)&gt; = &lt;test_relay_D2.Test_Relays object at 0x00000000042B73C8&gt;.driver</span><br/><br/>test_relay_D2.py:180: AssertionError<br/>---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;6eaa7cdcbd3fc266c1d93b7f372e3047&quot;)&gt;
+----------------------------- Captured stdout call -----------------------------<br/>确定清除2.4G无线中继连接
+</div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test_relay_D2.py::Test_Relays::()::test_Cancel_5G_Conn_Relay</td>
+          <td class="col-duration">30.80</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div><div><img src="http://192.168.102.200:8080/job/D2%20full%20case/ws/errorpng/caseFail/test_relay_D2.py_Test_Relays_()_test_Cancel_5G_Conn_Relay.png" alt="screenshot" style="width:304px;height:228px;" onclick="window.open(this.src)" align="right"/></div></div>
+            <div class="log">self = &lt;test_relay_D2.Test_Relays object at 0x000000000432C208&gt;<br/><br/>    def test_Cancel_5G_Conn_Relay(self):<br/>        print(u&#x27;取消5G无线中继连接&#x27;)<br/>&gt;       assert Cancel_5G_Conn_Relay(self.driver) == 2<br/><span class="error">E       assert None == 2</span><br/><span class="error">E        +  where None = Cancel_5G_Conn_Relay(&lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;1c5ced65f5001200e93c901c9ea15a97&quot;)&gt;)</span><br/><span class="error">E        +    where &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;1c5ced65f5001200e93c901c9ea15a97&quot;)&gt; = &lt;test_relay_D2.Test_Relays object at 0x000000000432C208&gt;.driver</span><br/><br/>test_relay_D2.py:184: AssertionError<br/>---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;1c5ced65f5001200e93c901c9ea15a97&quot;)&gt;
+----------------------------- Captured stdout call -----------------------------<br/>取消5G无线中继连接
+</div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test_relay_D2.py::Test_Relays::()::test_Sure_5G_Conn_Relay</td>
+          <td class="col-duration">30.78</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div><div><img src="http://192.168.102.200:8080/job/D2%20full%20case/ws/errorpng/caseFail/test_relay_D2.py_Test_Relays_()_test_Sure_5G_Conn_Relay.png" alt="screenshot" style="width:304px;height:228px;" onclick="window.open(this.src)" align="right"/></div></div>
+            <div class="log">self = &lt;test_relay_D2.Test_Relays object at 0x00000000042137F0&gt;<br/><br/>    def test_Sure_5G_Conn_Relay(self):<br/>        print(u&#x27;确定5G无线中继连接&#x27;)<br/>&gt;       assert Sure_5G_Conn_Relay(self.driver) == 1<br/><span class="error">E       assert None == 1</span><br/><span class="error">E        +  where None = Sure_5G_Conn_Relay(&lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;592854fa77a16aeb0a0158b3abcf1248&quot;)&gt;)</span><br/><span class="error">E        +    where &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;592854fa77a16aeb0a0158b3abcf1248&quot;)&gt; = &lt;test_relay_D2.Test_Relays object at 0x00000000042137F0&gt;.driver</span><br/><br/>test_relay_D2.py:188: AssertionError<br/>---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;592854fa77a16aeb0a0158b3abcf1248&quot;)&gt;
+----------------------------- Captured stdout call -----------------------------<br/>确定5G无线中继连接
+</div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test_relay_D2.py::Test_Relays::()::test_Sure_Clear_5G_Relay</td>
+          <td class="col-duration">30.77</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div><div><img src="http://192.168.102.200:8080/job/D2%20full%20case/ws/errorpng/caseFail/test_relay_D2.py_Test_Relays_()_test_Sure_Clear_5G_Relay.png" alt="screenshot" style="width:304px;height:228px;" onclick="window.open(this.src)" align="right"/></div></div>
+            <div class="log">self = &lt;test_relay_D2.Test_Relays object at 0x0000000004213C18&gt;<br/><br/>    def test_Sure_Clear_5G_Relay(self):<br/>        print(u&#x27;确定5G无线中继连接&#x27;)<br/>&gt;       assert Sure_Clear_5G_Relay(self.driver) == 2<br/><span class="error">E       assert None == 2</span><br/><span class="error">E        +  where None = Sure_Clear_5G_Relay(&lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;7c379e107ea6a680d5304a82c6edbc6e&quot;)&gt;)</span><br/><span class="error">E        +    where &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;7c379e107ea6a680d5304a82c6edbc6e&quot;)&gt; = &lt;test_relay_D2.Test_Relays object at 0x0000000004213C18&gt;.driver</span><br/><br/>test_relay_D2.py:192: AssertionError<br/>---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;7c379e107ea6a680d5304a82c6edbc6e&quot;)&gt;
+----------------------------- Captured stdout call -----------------------------<br/>确定5G无线中继连接
+</div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test_relay_D2.py::Test_Relays::()::test_Closed_Relay</td>
+          <td class="col-duration">32.41</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div><div><img src="http://192.168.102.200:8080/job/D2%20full%20case/ws/errorpng/caseFail/test_relay_D2.py_Test_Relays_()_test_Closed_Relay.png" alt="screenshot" style="width:304px;height:228px;" onclick="window.open(this.src)" align="right"/></div></div>
+            <div class="log">self = &lt;test_relay_D2.Test_Relays object at 0x00000000043322E8&gt;<br/><br/>    def test_Closed_Relay(self):<br/>        print(u&#x27;关闭无线中继&#x27;)<br/>&gt;       assert Closed_Relay(self.driver) == 3<br/><span class="error">E       assert 0 == 3</span><br/><span class="error">E        +  where 0 = Closed_Relay(&lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;9c593850932f13780aac0f195bda8d26&quot;)&gt;)</span><br/><span class="error">E        +    where &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;9c593850932f13780aac0f195bda8d26&quot;)&gt; = &lt;test_relay_D2.Test_Relays object at 0x00000000043322E8&gt;.driver</span><br/><br/>test_relay_D2.py:196: AssertionError<br/>---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;9c593850932f13780aac0f195bda8d26&quot;)&gt;
+----------------------------- Captured stdout call -----------------------------<br/>关闭无线中继
+</div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test_pullD1OutUSB.py::Test_PullOut::()::test_pullD1OutUSB</td>
+          <td class="col-duration">2.82</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div><div><img src="http://192.168.102.200:8080/job/D2%20full%20case/ws/errorpng/caseFail/test_pullD1OutUSB.py_Test_PullOut_()_test_pullD1OutUSB.png" alt="screenshot" style="width:304px;height:228px;" onclick="window.open(this.src)" align="right"/></div></div>
+            <div class="log">self = &lt;test_pullD1OutUSB.Test_PullOut object at 0x000000000433DDD8&gt;<br/><br/>    def test_pullD1OutUSB(self):<br/>&gt;       assert PullOutUSB(self.driver) == 1<br/><span class="error">E       assert 2 == 1</span><br/><span class="error">E        +  where 2 = PullOutUSB(&lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;5acd23223c88aa07b6bdd197951d1370&quot;)&gt;)</span><br/><span class="error">E        +    where &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;5acd23223c88aa07b6bdd197951d1370&quot;)&gt; = &lt;test_pullD1OutUSB.Test_PullOut object at 0x000000000433DDD8&gt;.driver</span><br/><br/>test_pullD1OutUSB.py:67: AssertionError<br/>---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;5acd23223c88aa07b6bdd197951d1370&quot;)&gt;
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_DHCP_ManualDNS.py::Test_DHCP_ManualDNS_Restart::()::test_set_DHCP_ManualDNS</td>
+          <td class="col-duration">37.58</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;c0874df5cf2552e2450c07e6677ecebe&quot;)&gt;
+one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;6a9dcb435886bb03a217d3d5a01f8d5f&quot;)&gt;
+----------------------------- Captured stdout call -----------------------------<br/>测试DHCP联网环境下，手动设置DNS
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_DHCP_ManualDNS.py::Test_DHCP_ManualDNS_Restart::()::test_restart</td>
+          <td class="col-duration">208.42</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;66cf714fde415363ea1da96d6a3a4b96&quot;)&gt;
+----------------------------- Captured stdout call -----------------------------<br/>重启
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_DHCP_ManualDNS.py::Test_DHCP_ManualDNS_Restart::()::test_Restart_DHCP_ManualDNS</td>
+          <td class="col-duration">22.24</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;121943b771e975bb7c34113bff312cb1&quot;)&gt;
+----------------------------- Captured stdout call -----------------------------<br/>测试DHCP联网环境下，DNS重启保存
+&lt;class &#x27;str&#x27;&gt;
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_DHCP_ManualDNS.py::Test_DHCP_ManualDNS_Restart::()::test_update</td>
+          <td class="col-duration">449.43</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;9ffdf28cb02fae1f832a32c4b8ed37df&quot;)&gt;
+----------------------------- Captured stdout call -----------------------------<br/>升级
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_DHCP_ManualDNS.py::Test_DHCP_ManualDNS_Restart::()::test_Upgrade_DHCP_ManualDNS</td>
+          <td class="col-duration">22.24</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;f968b46071e42f59a8d68885bab829b7&quot;)&gt;
+----------------------------- Captured stdout call -----------------------------<br/>测试DHCP联网环境下，DNS升级保存
+&lt;class &#x27;str&#x27;&gt;
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_staticRestart.py::test_staticRestart</td>
+          <td class="col-duration">302.97</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">----------------------------- Captured stdout call -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;2d97edcbd23a92f9339771ca61a15842&quot;)&gt;
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_staticUpdate.py::test_staticUpdate</td>
+          <td class="col-duration">544.30</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">----------------------------- Captured stdout call -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;01e8f0bd7975473b08c3b1bd86277bab&quot;)&gt;
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_AccessDevice.py::Test_AccessDevices::()::test_limitNetwork</td>
+          <td class="col-duration">46.09</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;9933ea8b59c5143d85c6226e3125632c&quot;)&gt;
+----------------------------- Captured stdout call -----------------------------<br/>限制网络访问
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_AccessDevice.py::Test_AccessDevices::()::test_Reopen_Network</td>
+          <td class="col-duration">5.20</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;193da202a7a0b4496be050f708727284&quot;)&gt;
+----------------------------- Captured stdout call -----------------------------<br/>重新打开网络访问
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_AccessDevice.py::Test_AccessDevices::()::test_limitSamba</td>
+          <td class="col-duration">94.54</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;fb11f2642b00db52d59b873a3879c653&quot;)&gt;
+----------------------------- Captured stdout call -----------------------------<br/>确定限制访问Samba
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_AccessDevice.py::Test_AccessDevices::()::test_reopenSamba</td>
+          <td class="col-duration">44.49</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;2fdf681d6cfd62042cf697576722660a&quot;)&gt;
+----------------------------- Captured stdout call -----------------------------<br/>重新打开samba访问
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_relay_D2.py::Test_Relays::()::test_Check_Default_Relay_Status</td>
+          <td class="col-duration">7.12</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;5fb0d7aef59e5b0a82829e2d7e38b338&quot;)&gt;
+----------------------------- Captured stdout call -----------------------------<br/>检查无线中继默认状态
+无线中继未开启
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_relay_D2.py::Test_Relays::()::test_Open_Relay</td>
+          <td class="col-duration">83.14</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;74c4e3aa614148c2c74cbf697837b79d&quot;)&gt;
+----------------------------- Captured stdout call -----------------------------<br/>打开无线中继
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_relay_D2.py::Test_Relays::()::test_Sure_24G_Conn_Relay</td>
+          <td class="col-duration">67.25</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;164d7040cbe837024d652480efa4b9c1&quot;)&gt;
+----------------------------- Captured stdout call -----------------------------<br/>确认2.4G无线中继连接
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_relay_D2.py::Test_Relays::()::test_Cancel_Clear_24G_Relay</td>
+          <td class="col-duration">50.45</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;f8394d11bd40b628922e6b6445c7cc1b&quot;)&gt;
+----------------------------- Captured stdout call -----------------------------<br/>取消清除2.4G无线中继连接
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_setPassword.py::test_en_specialChar_num</td>
+          <td class="col-duration">55.16</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">----------------------------- Captured stdout call -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;ed7948a4ef56356d0e3d465fc97a98e8&quot;)&gt;
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_setPassword.py::test_en</td>
+          <td class="col-duration">55.38</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">----------------------------- Captured stdout call -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;7a368cfd58e59068398ab64f2224b7b5&quot;)&gt;
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_setPassword.py::test_specialChar</td>
+          <td class="col-duration">56.04</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">----------------------------- Captured stdout call -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;d7690ca7fb63499227a6267d04d319c8&quot;)&gt;
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_setPassword.py::test_num</td>
+          <td class="col-duration">61.42</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">----------------------------- Captured stdout call -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;283ade8b92b9dc5f3962cd8d41a8b507&quot;)&gt;
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_reset.py::Test_Reset::()::test_reset</td>
+          <td class="col-duration">5.16</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;bab3dca3c14d38ac783f9538134faaaf&quot;)&gt;
+----------------------------- Captured stdout call -----------------------------<br/>测试重置路由器
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_setup_set_english_PW_D1.py::Test_Initialize_PW::()::test_set_english_Password</td>
+          <td class="col-duration">46.40</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;b9bd4bb25049d7c8799240fa0830abf8&quot;)&gt;
+----------------------------- Captured stdout call -----------------------------<br/>测试设置向导设置纯英文密码
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_setup_reset_english_PW.py::test_reset</td>
+          <td class="col-duration">235.26</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">----------------------------- Captured stdout call -----------------------------<br/>测试重置路由器
+one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;d0a66a331fe8408a6daec5b834b19560&quot;)&gt;
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_setup_set_SpecialChar_PW_D1.py::Test_Initialize_PW::()::test_set_number_Password</td>
+          <td class="col-duration">46.43</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;eb87f3bdf20ac9fcb6811f3535bb6bf0&quot;)&gt;
+----------------------------- Captured stdout call -----------------------------<br/>测试设置向导设置特殊字符密码
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_setup_reset_SpecialChar_PW.py::test_reset</td>
+          <td class="col-duration">234.94</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">----------------------------- Captured stdout call -----------------------------<br/>测试重置路由器
+one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;d769f0497a95bba277f27f597f2095e4&quot;)&gt;
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_setup_set_number_PW_D1.py::Test_Initialize_PW::()::test_set_number_Password</td>
+          <td class="col-duration">46.40</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">---------------------------- Captured stdout setup -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;bd2f1e7b90fac4acb310a8cf68dd74ae&quot;)&gt;
+----------------------------- Captured stdout call -----------------------------<br/>测试设置向导设置纯数字密码
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_setup_reset_number_PW.py::test_reset</td>
+          <td class="col-duration">234.98</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">----------------------------- Captured stdout call -----------------------------<br/>测试重置路由器
+one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;7be92d3af31250325055e2c2f90054d6&quot;)&gt;
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_setupD1DHCPNew.py::test_setupD1DHCPNew</td>
+          <td class="col-duration">108.69</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">----------------------------- Captured stdout call -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;264a535e7e63baee2b21d168a3e0efb2&quot;)&gt;
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_gateway.py::test_getDefaultGateway</td>
+          <td class="col-duration">57.42</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">----------------------------- Captured stdout call -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;fa1e305e292961be944f000e65d40c65&quot;)&gt;
+1
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_gateway.py::test_cancelSetGateway</td>
+          <td class="col-duration">63.65</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">----------------------------- Captured stdout call -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;bb164641cf7f88a09406cd5965fc2ed8&quot;)&gt;
+
+���� Ping 192.168.7.1 ���� 32 �ֽڵ�����:
+����ʱ��
+����ʱ��
+����ʱ��
+����ʱ��
+
+192.168.7.1 �� Ping ͳ����Ϣ:
+    ���ݰ�: �ѷ��� = 4���ѽ��� = 0����ʧ = 4 (100% ��ʧ)��
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_gateway.py::test_setNewGateway</td>
+          <td class="col-duration">137.74</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">----------------------------- Captured stdout call -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;735838cea36822488f41589c2c5f6843&quot;)&gt;
+
+���� Ping 192.168.7.1 ���� 32 �ֽڵ�����:
+���� 192.168.7.1 �Ļظ�: �ֽ�=32 ʱ��&lt;1ms TTL=64
+���� 192.168.7.1 �Ļظ�: �ֽ�=32 ʱ��&lt;1ms TTL=64
+���� 192.168.7.1 �Ļظ�: �ֽ�=32 ʱ��&lt;1ms TTL=64
+���� 192.168.7.1 �Ļظ�: �ֽ�=32 ʱ��&lt;1ms TTL=64
+
+192.168.7.1 �� Ping ͳ����Ϣ:
+    ���ݰ�: �ѷ��� = 4���ѽ��� = 4����ʧ = 0 (0% ��ʧ)��
+�����г̵Ĺ���ʱ��(�Ժ���Ϊ��λ):
+    ��� = 0ms��� = 0ms��ƽ�� = 0ms
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_gateway.py::test_getNewGateway</td>
+          <td class="col-duration">37.66</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">----------------------------- Captured stdout call -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;499a5b05404742fed1768632e8bf623f&quot;)&gt;
+1
+</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_gateway.py::test_setDefaultGateway</td>
+          <td class="col-duration">137.44</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">----------------------------- Captured stdout call -----------------------------<br/>one &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;c601f1ec91c8d4d0ffb92293309073cd&quot;)&gt;
+
+���� Ping 192.168.99.1 ���� 32 �ֽڵ�����:
+���� 192.168.99.1 �Ļظ�: �ֽ�=32 ʱ��&lt;1ms TTL=64
+���� 192.168.99.1 �Ļظ�: �ֽ�=32 ʱ��&lt;1ms TTL=64
+���� 192.168.99.1 �Ļظ�: �ֽ�=32 ʱ��&lt;1ms TTL=64
+���� 192.168.99.1 �Ļظ�: �ֽ�=32 ʱ��&lt;1ms TTL=64
+
+192.168.99.1 �� Ping ͳ����Ϣ:
+    ���ݰ�: �ѷ��� = 4���ѽ��� = 4����ʧ = 0 (0% ��ʧ)��
+�����г̵Ĺ���ʱ��(�Ժ���Ϊ��λ):
+    ��� = 0ms��� = 0ms��ƽ�� = 0ms
+</div></td></tr></tbody></table></body></html>

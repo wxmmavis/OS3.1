@@ -1,0 +1,46 @@
+###PPPOE&DHCP转换###
+    def switch_PPPOE_DHCP_initialize(self,driver):
+        time.sleep(10)
+        try:
+            #DHCP页面跳转到PPPOE页面
+            if driver.find_element_by_id("wifi-footer-left").is_displayed():
+                driver.find_element_by_id("wifi-footer-left").click()
+                time.sleep(2)
+                if driver.find_element_by_xpath("//p[text()='请输入运营商宽带账号']").is_displayed():
+                    return 1
+        except:
+            pass
+        try:
+            #PPPOE页面跳转到DHCP页面
+            if driver.find_element_by_xpath("//a[text()='无需拨号(DHCP)']").is_displayed():
+                driver.find_element_by_xpath("//a[text()='无需拨号(DHCP)']").click()
+                time.sleep(2)
+                if driver.find_element_by_xpath("//p[text()='请设置WiFi名称和密码']").is_displayed():
+                    return 2
+        except Exception as e:
+            driver.get_screenshot_as_file(os.path.dirname(os.getcwd()) + "/errorpng/switch_PPPOE_DHCP_initialize-%s.jpg" % time.strftime("%Y%m%d%H%M%S", time.localtime()))
+            logging.warning("switch_PPPOE_DHCP_initialize fail %s" % e)
+            return 0
+###PPPOE&DHCP转换###
+    def switch_PPPOE_DHCP_initialize_D2l(self,driver):
+        time.sleep(10)
+        try:
+            #DHCP页面跳转到PPPOE页面
+            if driver.find_element_by_id("wifi-footer-left").is_displayed():
+                driver.find_element_by_id("wifi-footer-left").click()
+                time.sleep(2)
+                if driver.find_element_by_xpath("//p[text()='请输入运营商宽带账号']").is_displayed():
+                    return 1
+        except:
+            pass
+        try:
+            #PPPOE页面跳转到DHCP页面
+            if driver.find_element_by_xpath("//a[text()='不需要拨号(DHCP)']").is_displayed():
+                driver.find_element_by_xpath("//a[text()='不需要拨号(DHCP)']").click()
+                time.sleep(2)
+                if driver.find_element_by_xpath("//p[text()='请设置WiFi名称和密码']").is_displayed():
+                    return 2
+        except Exception as e:
+            driver.get_screenshot_as_file(os.path.dirname(os.getcwd()) + "/errorpng/switch_PPPOE_DHCP_initialize-%s.jpg" % time.strftime("%Y%m%d%H%M%S", time.localtime()))
+            logging.warning("switch_PPPOE_DHCP_initialize fail %s" % e)
+            return 0

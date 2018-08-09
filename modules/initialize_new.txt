@@ -1,0 +1,42 @@
+###联想固件PPPOE环境下，输入PPPOE账号密码###
+    def input_pppoe_username_password_initialize_D2l(self,driver,username,password,illegal = None):
+        time.sleep(20)
+        try:
+            driver.find_element_by_id("broadband").clear()
+            driver.find_element_by_id("broadband").send_keys(username)
+            driver.find_element_by_id("password").clear()
+            driver.find_element_by_id("password").send_keys(password)
+            driver.find_element_by_id("pppoe-btn").click()
+            time.sleep(40)
+            if illegal == None:
+                driver.find_element_by_xpath("//p[@class='title']").is_displayed()
+                return 1
+            else:
+                error_message = driver.find_element_by_id("error-message").text
+                if error_message == "宽带账号或密码错误，请重新输入！":
+                    return 2
+        except Exception as e:
+            driver.get_screenshot_as_file(os.path.dirname(os.getcwd()) + "/errorpng/input_pppoe_username_password_initialize-%s.jpg" % time.strftime("%Y%m%d%H%M%S", time.localtime()))
+            logging.warning("close initialize set wifi fail %s" % e)
+            return 0
+    ###D2 PPPOE环境下，输入PPPOE账号密码###
+    def input_pppoe_username_password_initialize(self,driver,username,password,illegal = None):
+        time.sleep(20)
+        try:
+            driver.find_element_by_id("broadband").clear()
+            driver.find_element_by_id("broadband").send_keys(username)
+            driver.find_element_by_id("password").clear()
+            driver.find_element_by_id("password").send_keys(password)
+            driver.find_element_by_id("pppoe-btn").click()
+            time.sleep(40)
+            if illegal == None:
+                driver.find_element_by_xpath("//p[@class='title']").is_displayed()
+                return 1
+            else:
+                error_message = driver.find_element_by_id("error-message").text
+                if error_message == "请联系运营商是否欠费或重启调制解调器(猫)再拨号！":
+                    return 2
+        except Exception as e:
+            driver.get_screenshot_as_file(os.path.dirname(os.getcwd()) + "/errorpng/input_pppoe_username_password_initialize-%s.jpg" % time.strftime("%Y%m%d%H%M%S", time.localtime()))
+            logging.warning("close initialize set wifi fail %s" % e)
+            return 0
